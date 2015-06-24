@@ -37,7 +37,7 @@ def build_url(thread_id, post_num):
         
     return toR
 
-def scanThreadPage(thread_id, post_num=None):
+def scan_thread_page(thread_id, post_num=None):
     """ thread_id is the numerical ID from the url, ex 588429 for LCD-3 impressions """
     
     t = urllib.request.urlopen(build_url(thread_id, post_num))
@@ -56,12 +56,12 @@ def scanThreadPage(thread_id, post_num=None):
         yield toR
 
 
-def scanThread(thread_id):
-    yield from scanThreadPage(thread_id)
+def scan_thread(thread_id):
+    yield from scan_thread_page(thread_id)
 
     c = 15
     while True:
-        capt = list(scanThreadPage(thread_id, c))
+        capt = list(scan_thread_page(thread_id, c))
         if len(capt) == 0:
             return
         for p in capt:
@@ -72,5 +72,5 @@ def scanThread(thread_id):
 
         
 
-for post in scanThread(588429):
+for post in scan_thread(588429):
     print(post)
