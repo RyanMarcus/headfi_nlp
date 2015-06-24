@@ -28,9 +28,19 @@ class Post:
 post_id_pattern = re.compile('content_([0-9]+)')
 post_ref_pattern = re.compile('.+post_([0-9]+)')
 
-def scanThread(thread_id):
+def build_url(thread_id, post_num):
+    toR = "http://head-fi.org/t/" + str(thread_id)
+    if post_num != None:
+        toR += "/xxx/" + str(post_num)
+
+    print("Built:", toR)
+        
+    return toR
+
+def scanThreadPage(thread_id, post_num=None):
     """ thread_id is the numerical ID from the url, ex 588429 for LCD-3 impressions """
-    t = urllib.request.urlopen("http://head-fi.org/t/" + str(thread_id) + "/")
+    
+    t = urllib.request.urlopen(build_url(thread_id, post_num))
     soup = BeautifulSoup(t.read())
     posts = soup.find_all("div", class_="post-content-area")
     toR = []
@@ -46,7 +56,21 @@ def scanThread(thread_id):
         yield toR
 
 
+def scanThread(thread_id):
+    yield from scanThreadPage(thread_id)
 
+    c = 15
+    while True:
+        capt = list(scanThreadPage(thread_id, c))
+        if len(capt) == 0:
+            return
+        for p in capt:
+            yield p
+        c += 15
+        
+        
+
+        
 
 for post in scanThread(588429):
     print(post)
