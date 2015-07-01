@@ -1,0 +1,4 @@
+beautifulsoup4==4.3.2
+networkx==1.9.1
+matplotlib==1.4.3
+nltk==3.0.3
