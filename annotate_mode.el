@@ -7,13 +7,26 @@
 
   ;; assign command to keys
   (setq annotate-mode-map (make-sparse-keymap))
-  (define-key annotate-mode-map (kbd "q") 'annotate-skip-word)
-  (define-key annotate-mode-map (kbd "w") 'annotate-mark-word))
+  (define-key annotate-mode-map (kbd "w") 'annotate-skip-word)
+  (define-key annotate-mode-map (kbd "e") 'annotate-mark-word)
+  (define-key annotate-mode-map (kbd "q") 'annotate-skip-three-words)
+  (define-key annotate-mode-map (kbd "a") 'annotate-back-word))
 
 (defun annotate-skip-word ()
   (interactive)
   (right-word)
   (right-word)
+  (left-word))
+
+(defun annotate-skip-three-words ()
+  (interactive)
+  (annotate-skip-word)
+  (annotate-skip-word)
+  (annotate-skip-word))
+
+(defun annotate-back-word ()
+  (interactive)
+  (left-word)
   (left-word))
 
 (defun annotate-mark-word ()
