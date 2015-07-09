@@ -6,6 +6,9 @@ import math
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import BaggingClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 
 import sklearn
 
@@ -128,7 +131,7 @@ def type_of_string(s):
     return "none"
 
 def numeric_fingerprint(s):
-    return "y" if any(c.isdigit() for c in s) else "n"
+    return any(c.isdigit() for c in s) 
 
 
 def extract_suffix(s):
@@ -140,16 +143,49 @@ def extract_suffix(s):
 import re
 model_sig_pattern = re.compile('[A-Z]+[A-Z0-9]*-[0-9][A-Z0-9]*')
 def is_model_sig(s):
-    return "y" if model_sig_pattern.match(s) != None else "n"
+    return model_sig_pattern.match(s) != None
 
 
 numeric_plural_or_poss_pattern = re.compile("[A-Za-z0-9]+'?s")
 def is_numeric_plural(s):
-    return "y" if numeric_plural_or_poss_pattern.match(s) != None else "n"
+    return numeric_plural_or_poss_pattern.match(s) != None
+
+
+companies = {"ableplanet", "akg", "ar", "audeze", "altec", "audiotechnica", "beats", "behringer", "beyerdynamic", "bk", "bose", "b&w", "califone", "cortex", "creative", "cta", "denon", "etymotic", "everglide", "focal", "fostex", "futuresonics", "ge", "gemini", "genius", "grado", "hifiman", "icetech", "ifrogz", "inland", "isymphony", "jvc", "jwin", "klipsch", "koss", "labtec", "logitech", "ltb", "m-audio", "marshall", "maxell", "monoprice", "monster", "nady", "numark", "otto", "panasonic", "paradigm", "phiaton", "philips", "pioneer", "polk", "psb", "psyko", "rca", "roland", "samson", "sennheiser", "sherwood", "shure", "skullcandy", "sol", "sony", "soul", "stanton", "stax", "targus", "tascam", "tdk", "ultrasone", "velodyne", "vestax", "vic", "v-moda", "yamaha", "zagg", "alo", "audioquest", "burson", "fiio", "grace", "oppo", "schitt", "centrance", "woo"}
+def is_company(s):
+    res = s.lower() in companies
+    res = res or (s.lower().replace("'s", "") in companies)
+    res = res or (s.lower()[:-1] in companies)
+    return res
+
+
+def ends_sentence(s):
+    s = s.strip()
+    return s.endswith(".") or s.endswith("!") or s.endswith(";")
+
+
+keywords = {"amp", "amps", "amplifier", "dac", "dacs", "cable", "cables", "headphones", "headphone", "HP"}
+def is_keyword(s):
+    if s in keywords:
+        return s[0:2]
+    return "n"
+
+words = set(nltk.corpus.words.words())
+def is_english(s):
+    return s in words
+
+
+def has_demarc(s):
+    demarcs = ["$", "#", "%"]
+    for d in demarcs:
+        if d in s:
+            return True
+
+    return False
 
 def features_for_ngrams(ngrams, previous):
     vec = dict()
-    vec['prev'] = previous
+    #vec['prev'] = previous
     for ew in enumerate(ngrams):
             c, w = ew
             vec['pos'       + str(c)] = str(w[1])
@@ -158,15 +194,20 @@ def features_for_ngrams(ngrams, previous):
             vec['num'       + str(c)] = numeric_fingerprint(w[0])
             vec['model_sig' + str(c)] = is_model_sig(w[0])
             vec['num_plurl' + str(c)] = is_numeric_plural(w[0])
+            vec['is_compny' + str(c)] = is_company(w[0])
+            vec['sent_term' + str(c)] = ends_sentence(w[0])
+            vec['is_keywrd' + str(c)] = is_keyword(w[0])
+            vec['is_englsh' + str(c)] = is_english(w[0])
+            vec['has_demrc' + str(c)] = has_demarc(w[0])
 
     return vec
             
             
 def ngrams_as_training_data(ngrams):
-    previous = "False"
+    previous = False
     for ngram in ngrams:
         vec = features_for_ngrams(ngram[0], previous)
-        previous = str(ngram[1])
+        previous = ngram[1]
         yield vec, ngram[1]
 
 
@@ -185,11 +226,14 @@ def file_as_training_vectors(filename, gram_size):
         itr =  enumerate(file_as_posts(filename))
         futures = []
         for i in range(worker_count):
-            idx, post = next(itr)
-            futures.append(exe.submit(post_to_vector, post, gram_size))
-            print("Submitted", idx)
+            try:
+                idx, post = next(itr)
+                futures.append(exe.submit(post_to_vector, post, gram_size))
+            except StopIteration:
+                break # we've submitted all the tasks already!
 
-        
+
+
         while True:
             done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
             futures = []
@@ -228,8 +272,8 @@ def file_as_vectors(filename, gram_size):
 
         
 class Corpus:
-    def __init__(self, filename, gram_size):
-        self.filename = filename
+    def __init__(self, filenames, gram_size):
+        self.filename = filenames
         self.gram_size = gram_size
 
     def extract(self, evaluate_model=True):
@@ -239,14 +283,16 @@ class Corpus:
         labels = []
 
         logging.debug("Extracting training data")
+
         
-        # train on a subset of the grams
-        samples_to_acquire = 23692
-        for vec in itertools.islice(file_as_training_vectors(self.filename, self.gram_size), samples_to_acquire):
-            training.append(vec[0])
-            labels.append(vec[1])
-            if len(training) % 1000 == 0:
-                logging.debug("Extraction progress: %s / %s (%s)" % (len(training), samples_to_acquire, (len(training) / samples_to_acquire)))
+        samples_to_acquire = 37897
+        for training_file in self.filename:
+            print(training_file)
+            for vec in file_as_training_vectors(training_file, self.gram_size):
+                training.append(vec[0])
+                labels.append(vec[1])
+                if len(training) % 1000 == 0:
+                    logging.debug("Extraction progress: %s / %s (%s)" % (len(training), samples_to_acquire, (len(training) / samples_to_acquire)))
 
 
         logging.debug("Got %s training instances" % len(training))
@@ -267,7 +313,43 @@ class Corpus:
 
         logging.debug("Training data and labels saved")
 
-    def train(self, evaluate_model=True):
+
+    def parameter_search(self):
+        training = self.training
+        labels = self.labels
+        num_features = len(training[0])
+
+        
+        clf = GradientBoostingClassifier()
+        gs = sklearn.grid_search.GridSearchCV(clf,
+                                 { "learning_rate": [0.1, 0.5, 1.0],
+                                   "n_estimators": [50, 100, 150],
+                                   "max_depth": [3, int(math.ceil(math.log2(num_features))), num_features - 1],
+                                   "max_features": ["auto", None],
+                                   "min_samples_split": [1, 2, 4],
+                                   "min_samples_leaf": [1, 2] },
+                                              scoring="f1", n_jobs=8, verbose=1)
+
+
+        # last best:
+        #max_features=None,
+        #min_samples_split=1,
+        #min_samples_leaf=1,
+        #learning_rate=0.1,
+        #max_depth=3,
+        #n_estimators=150
+        
+        gs.fit(training, labels)
+
+        print(gs.grid_scores_)
+        print(gs.best_estimator_)
+        print(gs.best_score_)
+        print(gs.best_params_)
+        
+
+        
+
+    def train(self, evaluate_model=True, feature_importance=True):
         
         training = self.training
         labels = self.labels
@@ -282,7 +364,16 @@ class Corpus:
         #                                                    class_weight="auto"),
         #                             n_jobs=1, n_estimators=500)
                                      
-        self.clf = RandomForestClassifier(n_estimators=100)
+        self.clf = RandomForestClassifier(n_estimators=100, class_weight=None)
+
+        #self.clf = GaussianNB()
+        #self.clf = GradientBoostingClassifier(max_features=None,
+        #                                      min_samples_split=1,
+        #                                      min_samples_leaf=1,
+        #                                      learning_rate=0.1,
+        #                                      max_depth=3,
+        #                                      n_estimators=150)
+        #self.clf = KNeighborsClassifier(algorithm="auto")
         #self.clf = DecisionTreeClassifier(min_samples_leaf=2)
 
         if evaluate_model:
@@ -303,6 +394,17 @@ class Corpus:
         logging.info("Starting model training...")
         self.clf = self.clf.fit(training, labels)
         logging.info("Model training complete.")
+
+        if feature_importance:
+
+            impor = dict()
+            for k,v in self.vectorizer.vocabulary_.items():
+                impor[k] = self.clf.feature_importances_[v]
+
+            for k in sorted(impor, key=lambda x: impor[x]):
+                logging.debug("Feature %s\thas importance\t%s" % (k, impor[k]))
+
+
         
         
         logging.info("Saving model to disk...")
@@ -316,37 +418,44 @@ class Corpus:
     def load_training_data(self):
         self.training = joblib.load('models/training_data.pkl')
         self.labels = joblib.load('models/training_labels.pkl')
+        self.vectorizer = joblib.load('models/lcd_vectorize.pkl')
         
     def identify_entities(self, filename):
         if not hasattr(self, 'clf'):
             raise ValueError("Cannot identify elements without first loading or training a model")
             
-        previous = "False"
+        previous = False
         for vec, gram in file_as_vectors(filename, self.gram_size):
 
             vec['prev'] = previous
-            sample = self.vectorizer.transform(vec)
+            sample = self.vectorizer.transform(vec).toarray()
             result = self.clf.predict(sample)
-            previous = str(result[0])
+            previous = result[0]
             if result[0]:
-                print(gram, result)
+                print(" ".join(gram), "|")
         
         
                
 
+# with trigrams and CV search:
+#INFO:root:Recall (finding true positives): 0.515901060071
+#INFO:root:Precision (avoid false positives): 0.696897374702
 
-
+                
 import sys
 if __name__ == "__main__":
-    c = Corpus("lcd_impressions.txt", 3)
+    c = Corpus(["lcd_impressions.txt", "he400_impressions.txt", "asgard2_impressions.txt"], 3)
     if sys.argv[1] == "extract":
         c.extract()
     elif sys.argv[1] == "train":
         c.load_training_data()
         c.train()
+    elif sys.argv[1] == "search":
+        c.load_training_data()
+        c.parameter_search()
     elif sys.argv[1] == "test":
         c.load_model()
-        c.identify_entities("lcd_eval.txt")
+        c.identify_entities("he400_nolabels.txt")
         
 # this file has 1017980 samples (trigrams)
 

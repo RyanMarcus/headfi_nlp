@@ -224,7 +224,7 @@ def scan_thread(thread_id, max_pages=None):
 
 #pg = PostGraph(scan_thread(588429))
 
-for topic in filter(lambda x: x.is_long_post(), scan_thread(588429)):
+for topic in filter(lambda x: x.is_long_post(), scan_thread(650092)):
     print("=============================================")
     print("Topic:", topic.get_post_id(), "in thread", topic.get_thread_id())
     print("=============================================")
