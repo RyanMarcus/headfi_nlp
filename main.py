@@ -7,14 +7,17 @@ import json
 
 
 class Post:
-    def __init__(self, thread_id, post_id, html):
+    def __init__(self, thread_id, post_id, user_link, html):
         self.thread_id = thread_id
         self.post_id = post_id
         self.post_refs = []
+        self.user_link = user_link
 
-        soup = BeautifulSoup(str(html))
+        soup = BeautifulSoup(str(html), "html.parser")
         
         self.html = str(soup)
+
+        
         self.prev = None
 
         # remove anything inside of a div with class quote-block
@@ -34,7 +37,9 @@ class Post:
 
         
         
-
+    def get_user_link(self):
+        return self.user_link
+        
     def get_thread_id(self):
         return int(self.thread_id)
 
@@ -184,12 +189,12 @@ def scan_thread_page(thread_id, post_num=None):
     """ thread_id is the numerical ID from the url, ex 588429 for LCD-3 impressions """
     
 
-    soup = BeautifulSoup(get_url(thread_id, post_num))
+    soup = BeautifulSoup(get_url(thread_id, post_num), "html.parser")
     posts = soup.find_all("div", class_="post-content-area")
     for x in posts:
         post_id = int(post_id_pattern.match(x.find_all("div", class_="shazam")[0]['id']).group(1))
 
-        toR = Post(thread_id, post_id, x)
+        toR = Post(thread_id, post_id, x.parent.find("a")["href"], x)
 
         post_refs = []
         try:
@@ -224,10 +229,11 @@ def scan_thread(thread_id, max_pages=None):
 
 #pg = PostGraph(scan_thread(588429))
 
-for topic in filter(lambda x: x.is_long_post(), scan_thread(650092)):
-    print("=============================================")
-    print("Topic:", topic.get_post_id(), "in thread", topic.get_thread_id())
-    print("=============================================")
+for topic in scan_thread(109756):
+    #print("=============================================")
+    #print("***&&&*** Topic:", topic.get_post_id(), "in thread", topic.get_thread_id(), "by", topic.get_user_link())
+    #print("=============================================")
+    print("AABBCCDDEEZZXXAABBCCDDEEZZXXAABBCCDDEEZZXX")
     print(topic.get_text())
         
 

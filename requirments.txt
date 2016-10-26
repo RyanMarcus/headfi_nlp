@@ -1,6 +1,6 @@
-beautifulsoup4==4.3.2
+beautifulsoup4==4.4.1
 networkx==1.9.1
 matplotlib==1.4.3
-nltk==3.0.3
-scikit-learn==0.16.1
-scipy==0.15.1 # unstated depend of scikit-learn
+nltk==3.2.1
+scikit-learn==0.17.1
+
